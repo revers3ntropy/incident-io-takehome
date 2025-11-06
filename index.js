@@ -1,5 +1,5 @@
 import yargs from 'yargs';
-import {hideBin} from 'yargs/helpers';
+import { hideBin } from 'yargs/helpers';
 import * as fs from 'fs';
 
 /** @typedef {{
@@ -150,11 +150,11 @@ function applyOverrides(baseSchedule, parsedOverrides) {
 }
 
 /**
- * Filters and truncates a final schedule to fit the query window.
+ * filters and truncates a final schedule to fit the query window.
  * @param {WorkingScheduleElement[]} schedule
  * @param {Date} from
  * @param {Date} until
- * @returns {ScheduleElement[]} - The final, formatted schedule
+ * @returns {ScheduleElement[]}
  */
 function truncateAndFilterSchedule(schedule, from, until) {
     const finalSchedule = [];
@@ -163,15 +163,15 @@ function truncateAndFilterSchedule(schedule, from, until) {
         const shift_start = shift.start_at;
         const shift_end = shift.end_at;
 
-        // Check for overlap with the query window
+        // check for overlap with the query window
         const has_overlap = (shift_start < until) && (shift_end > from);
 
         if (has_overlap) {
-            // Truncate the shift to fit the window
+            // truncate the shift to fit the window
             const truncated_start = new Date(Math.max(shift_start.getTime(), from.getTime()));
             const truncated_end = new Date(Math.min(shift_end.getTime(), until.getTime()));
 
-            // Only add the shift if it still has a positive duration
+            // only add the shift if it still has a positive duration
             if (truncated_start.getTime() < truncated_end.getTime()) {
                 finalSchedule.push({
                     user: shift.user,
@@ -186,9 +186,8 @@ function truncateAndFilterSchedule(schedule, from, until) {
 }
 
 /**
- * Main orchestration function
  * @param {ScheduleConfig} config
- * @param {Override[]} overrides - Original overrides with string dates
+ * @param {Override[]} overrides
  * @param {Date} fromDate
  * @param {Date} untilDate
  * @returns {ScheduleElement[]}
