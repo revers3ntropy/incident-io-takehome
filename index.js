@@ -51,39 +51,38 @@ function dateIso(d) {
 function generateBaseSchedule(config, from, until) {
     /** @type {WorkingScheduleElement[]} */
     const baseShifts = [];
-    const { users, handover_start_at, handover_interval_days } = config;
-    const num_users = users.length;
+    const { users, handover_start_at: handoverStartAt, handover_interval_days: handoverIntervalDays } = config;
 
-    const handover_start_ms = new Date(handover_start_at).getTime();
-    const interval_ms = handover_interval_days * 24 * 60 * 60 * 1000;
+    const handoverStartMs = new Date(handoverStartAt).getTime();
+    const intervalMs = handoverIntervalDays * 24 * 60 * 60 * 1000;
 
-    if (interval_ms <= 0) {
+    if (intervalMs <= 0) {
         throw new Error("handover_interval_days must be greater than 0");
     }
 
     // Find the start of the first shift that is active *at or before* the 'from' time.
-    const elapsed_ms = from.getTime() - handover_start_ms;
+    const elapsedMs = from.getTime() - handoverStartMs;
     // Math.floor handles 'from' times before the handover_start_at
-    const intervals_passed = Math.floor(elapsed_ms / interval_ms);
+    const intervalsPassed = Math.floor(elapsedMs / intervalMs);
 
-    let current_shift_start_ms = handover_start_ms + (intervals_passed * interval_ms);
+    let currentShiftStartMs = handoverStartMs + (intervalsPassed * intervalMs);
 
     // Correctly calculate the user index, handling negative intervals
-    let current_user_index = ((intervals_passed % num_users) + num_users) % num_users;
+    let userIdx = ((intervalsPassed % users.length) + users.length) % users.length;
 
     // Generate shifts until we pass the 'until' time
-    while (current_shift_start_ms < until.getTime()) {
-        const current_shift_end_ms = current_shift_start_ms + interval_ms;
+    while (currentShiftStartMs < until.getTime()) {
+        const currentShiftEndMs = currentShiftStartMs + intervalMs;
 
         baseShifts.push({
-            user: users[current_user_index],
-            start_at: new Date(current_shift_start_ms),
-            end_at: new Date(current_shift_end_ms),
+            user: users[userIdx],
+            start_at: new Date(currentShiftStartMs),
+            end_at: new Date(currentShiftEndMs),
         });
 
         // Move to the next shift
-        current_shift_start_ms = current_shift_end_ms;
-        current_user_index = (current_user_index + 1) % num_users;
+        currentShiftStartMs = currentShiftEndMs;
+        userIdx = (userIdx + 1) % users.length;
     }
 
     return baseShifts;
@@ -105,32 +104,32 @@ function applyOverrides(baseSchedule, parsedOverrides) {
         const nextSchedule = [];
 
         for (const shift of workingSchedule) {
-            const ov_start = override.start_at;
-            const ov_end = override.end_at;
-            const shift_start = shift.start_at;
-            const shift_end = shift.end_at;
+            const ovStart = override.start_at;
+            const ovEnd = override.end_at;
+            const shiftStart = shift.start_at;
+            const shiftEnd = shift.end_at;
 
-            const has_overlap = (ov_start < shift_end) && (ov_end > shift_start);
+            const hasOverlap = (ovStart < shiftEnd) && (ovEnd > shiftStart);
 
-            if (!has_overlap) {
+            if (!hasOverlap) {
                 // shift is unaffected
                 nextSchedule.push(shift);
                 continue;
             }
 
-            if (shift_start < ov_start) {
+            if (shiftStart < ovStart) {
                 nextSchedule.push({
                     user: shift.user,
-                    start_at: shift_start,
-                    end_at: ov_start,
+                    start_at: shiftStart,
+                    end_at: ovStart,
                 });
             }
 
-            if (shift_end > ov_end) {
+            if (shiftEnd > ovEnd) {
                 nextSchedule.push({
                     user: shift.user,
-                    start_at: ov_end,
-                    end_at: shift_end,
+                    start_at: ovEnd,
+                    end_at: shiftEnd,
                 });
             }
 
@@ -160,26 +159,25 @@ function truncateAndFilterSchedule(schedule, from, until) {
     const finalSchedule = [];
 
     for (const shift of schedule) {
-        const shift_start = shift.start_at;
-        const shift_end = shift.end_at;
+        const startAt = shift.start_at;
+        const endAt = shift.end_at;
 
-        // check for overlap with the query window
-        const has_overlap = (shift_start < until) && (shift_end > from);
+        if (startAt >= until || endAt <= from) continue;
 
-        if (has_overlap) {
-            // truncate the shift to fit the window
-            const truncated_start = new Date(Math.max(shift_start.getTime(), from.getTime()));
-            const truncated_end = new Date(Math.min(shift_end.getTime(), until.getTime()));
+        // truncate the shift to fit the window
+        const truncatedStart = new Date(Math.max(startAt.getTime(), from.getTime()));
+        const truncatedEnd = new Date(Math.min(endAt.getTime(), until.getTime()));
 
-            // only add the shift if it still has a positive duration
-            if (truncated_start.getTime() < truncated_end.getTime()) {
-                finalSchedule.push({
-                    user: shift.user,
-                    start_at: dateIso(truncated_start),
-                    end_at: dateIso(truncated_end),
-                });
-            }
-        }
+        // only add the shift if it still has a positive duration
+        if (truncatedStart.getTime() >= truncatedEnd.getTime())
+            continue;
+
+        finalSchedule.push({
+            user: shift.user,
+            start_at: dateIso(truncatedStart),
+            end_at: dateIso(truncatedEnd),
+        });
+
     }
 
     return finalSchedule;
@@ -202,7 +200,6 @@ function makeSchedule(config, overrides, fromDate, untilDate) {
         start_at: new Date(ov.start_at),
         end_at: new Date(ov.end_at)
     }));
-
     // apply overrides to base schedule
     const overriddenSchedule = applyOverrides(baseShifts, parsedOverrides);
 
@@ -238,3 +235,11 @@ function main() {
 }
 
 main();
+
+// TODO:
+// - time zones
+// - data persistence
+// - nice UI for this, turning it into a web app / native app
+// - integration into alerts system
+// - 'secondary' on call, hierarchy of alerts
+// - multiple teams
