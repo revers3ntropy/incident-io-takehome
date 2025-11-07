@@ -218,7 +218,7 @@ function main() {
 
     const { schedule, overrides, from, until } = argv;
 
-    // assume these files exist and are valid JSON
+    // assume these files exist and are well-formed
     /** @type {ScheduleConfig} */
     const scheduleData = JSON.parse(String(fs.readFileSync(schedule)));
     /** @type {Override[]} */
